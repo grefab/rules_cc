@@ -709,6 +709,7 @@ def _get_msvc_vars(repository_ctx, paths, target_arch = "x64", msvc_vars_x64 = N
                                 "Please install Clang via http://releases.llvm.org/download.html\n")
 
         build_tools["CL"] = find_llvm_tool(repository_ctx, llvm_path, "clang-cl.exe")
+        build_tools["DUMPBIN"] = find_msvc_tool(repository_ctx, vc_path, "dumpbin.exe", "x64")
         build_tools["ML"] = find_msvc_tool(repository_ctx, vc_path, "ml64.exe", "x64")
         build_tools["LINK"] = find_llvm_tool(repository_ctx, llvm_path, "lld-link.exe")
         if not build_tools["LINK"]:
