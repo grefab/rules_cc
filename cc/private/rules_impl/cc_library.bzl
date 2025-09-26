@@ -63,7 +63,7 @@ def _cc_library_impl(ctx):
         cxx_flags = cc_helper.get_copts(ctx, feature_configuration, additional_make_variable_substitutions, attr = "cxxopts"),
         defines = cc_helper.defines(ctx, additional_make_variable_substitutions),
         local_defines = cc_helper.local_defines(ctx, additional_make_variable_substitutions) + cc_helper.get_local_defines_for_runfiles_lookup(ctx, ctx.attr.deps + ctx.attr.implementation_deps),
-        system_includes = cc_helper.system_include_dirs(ctx, additional_make_variable_substitutions),
+        includes = cc_helper.include_dirs(ctx, additional_make_variable_substitutions),
         copts_filter = cc_helper.copts_filter(ctx, additional_make_variable_substitutions),
         purpose = "cc_library-compile",
         srcs = cc_helper.get_srcs(ctx),
@@ -108,7 +108,11 @@ def _cc_library_impl(ctx):
     empty_archive_linking_context = CcInfo().linking_context
 
     linking_contexts = cc_helper.get_linking_contexts_from_deps(ctx.attr.deps)
-    linking_contexts.extend(cc_helper.get_linking_contexts_from_deps(ctx.attr.implementation_deps))
+    linking_contexts.extend(
+        cc_helper.get_linking_contexts_from_deps(
+            ctx.attr.implementation_deps + semantics.get_cc_runtimes(ctx, True),
+        ),
+    )
     if ctx.file.linkstamp != None:
         linkstamps = []
         linkstamps.append(cc_common.create_linkstamp(
@@ -257,11 +261,19 @@ def _cc_library_impl(ctx):
             elif artifacts_to_build.interface_library != None:
                 files_builder.append(artifacts_to_build.interface_library)
 
+    if hasattr(compilation_outputs, "gcno_files"):
+        gcno_files = compilation_outputs.gcno_files()
+    else:
+        gcno_files = compilation_outputs._gcno_files
+    if hasattr(compilation_outputs, "pic_gcno_files"):
+        pic_gcno_files = compilation_outputs.pic_gcno_files()
+    else:
+        pic_gcno_files = compilation_outputs._pic_gcno_files
     instrumented_files_info = cc_helper.create_cc_instrumented_files_info(
         ctx = ctx,
         cc_config = ctx.fragments.cpp,
         cc_toolchain = cc_toolchain,
-        metadata_files = compilation_outputs.gcno_files() + compilation_outputs.pic_gcno_files(),
+        metadata_files = gcno_files + pic_gcno_files,
     )
 
     runfiles_list = []

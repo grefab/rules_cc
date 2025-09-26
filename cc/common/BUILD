@@ -19,8 +19,8 @@ bzl_library(
     srcs = glob(["*.bzl"]),
     visibility = ["//visibility:public"],
     deps = [
+        "//cc/private:paths_bzl",
         "//cc/private/rules_impl:native_bzl",
-        "//cc/private/rules_impl:objc_common",
     ],
 )
 
@@ -30,6 +30,7 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = [
         ":visibility_bzl",
+        "//cc/private:paths_bzl",
         "//cc/private/rules_impl:objc_common",
     ],
 )

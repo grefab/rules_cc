@@ -14,6 +14,7 @@
 """Module extension for cc auto configuration."""
 
 load("@bazel_features//:features.bzl", "bazel_features")
+load("@bazel_features//private:util.bzl", _bazel_version_ge = "ge")
 load("//cc/private/toolchain:cc_configure.bzl", "cc_autoconf", "cc_autoconf_toolchains")
 
 def _cc_configure_extension_impl(ctx):
@@ -27,16 +28,29 @@ def _cc_configure_extension_impl(ctx):
 cc_configure_extension = module_extension(implementation = _cc_configure_extension_impl)
 
 def _compatibility_proxy_repo_impl(rctx):
-    rctx.file("BUILD", "")
-    bazel = native.bazel_version
-    if not bazel or bazel >= "9":
+    if _bazel_version_ge("9.0.0-pre.20250911"):
+        rctx.file(
+            "BUILD",
+            """
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+bzl_library(
+  name = "proxy_bzl",
+  srcs = ["proxy.bzl"],
+  deps = [
+    "@rules_cc//cc/private/rules_impl:core_rules",
+    "@rules_cc//cc/private/rules_impl:toolchain_rules",
+  ],
+  visibility = ["@rules_cc//cc:__subpackages__"],
+)
+            """,
+        )
         rctx.file(
             "proxy.bzl",
             """
 load("@rules_cc//cc/private/rules_impl:cc_binary.bzl", _cc_binary = "cc_binary")
 load("@rules_cc//cc/private/rules_impl:cc_import.bzl", _cc_import = "cc_import")
 load("@rules_cc//cc/private/rules_impl:cc_library.bzl", _cc_library = "cc_library")
-load("@rules_cc//cc/private/rules_impl:cc_shared_library.bzl", _cc_shared_library = "cc_shared_library")
+load("@rules_cc//cc/private/rules_impl:cc_shared_library.bzl", _cc_shared_library = "cc_shared_library", _CcSharedLibraryInfo = "CcSharedLibraryInfo")
 load("@rules_cc//cc/private/rules_impl:cc_static_library.bzl", _cc_static_library = "cc_static_library")
 load("@rules_cc//cc/private/rules_impl:cc_test.bzl", _cc_test = "cc_test")
 load("@rules_cc//cc/private/rules_impl:objc_import.bzl", _objc_import = "objc_import")
@@ -45,6 +59,8 @@ load("@rules_cc//cc/private/rules_impl:fdo/fdo_prefetch_hints.bzl", _fdo_prefetc
 load("@rules_cc//cc/private/rules_impl:fdo/fdo_profile.bzl", _fdo_profile = "fdo_profile")
 load("@rules_cc//cc/private/rules_impl:fdo/memprof_profile.bzl", _memprof_profile = "memprof_profile")
 load("@rules_cc//cc/private/rules_impl:fdo/propeller_optimize.bzl", _propeller_optimize = "propeller_optimize")
+load("@rules_cc//cc/private/rules_impl:cc_toolchain.bzl", _cc_toolchain = "cc_toolchain")
+load("@rules_cc//cc/private/rules_impl:cc_toolchain_alias.bzl", _cc_toolchain_alias = "cc_toolchain_alias")
 
 cc_binary = _cc_binary
 cc_import = _cc_import
@@ -58,12 +74,29 @@ fdo_prefetch_hints = _fdo_prefetch_hints
 fdo_profile = _fdo_profile
 memprof_profile = _memprof_profile
 propeller_optimize = _propeller_optimize
+cc_toolchain = _cc_toolchain
+cc_toolchain_alias = _cc_toolchain_alias
+
+CcSharedLibraryInfo = _CcSharedLibraryInfo
             """,
         )
     else:
         rctx.file(
+            "BUILD",
+            """
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+bzl_library(
+  name = "proxy_bzl",
+  srcs = ["proxy.bzl"],
+  deps = ["@rules_cc//cc/private/rules_impl:native_bzl"],
+  visibility = ["@rules_cc//cc:__subpackages__"],
+)
+            """,
+        )
+        rctx.file(
             "proxy.bzl",
             """
+load("@rules_cc//cc/private/rules_impl:native.bzl", "NativeCcSharedLibraryInfo")
 cc_binary = native.cc_binary
 cc_import = native.cc_import
 cc_library = native.cc_library
@@ -76,6 +109,10 @@ fdo_prefetch_hints = native.fdo_prefetch_hints
 fdo_profile = native.fdo_profile
 memprof_profile = getattr(native, "memprof_profile", None) # only in Bazel 7+
 propeller_optimize = native.propeller_optimize
+cc_toolchain = native.cc_toolchain
+cc_toolchain_alias = native.cc_toolchain_alias
+
+CcSharedLibraryInfo = NativeCcSharedLibraryInfo
             """,
         )
 
