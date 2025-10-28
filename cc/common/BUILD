@@ -19,6 +19,7 @@ bzl_library(
     srcs = glob(["*.bzl"]),
     visibility = ["//visibility:public"],
     deps = [
+        "//cc/private:cc_internal_bzl",
         "//cc/private:paths_bzl",
         "//cc/private/rules_impl:native_bzl",
     ],

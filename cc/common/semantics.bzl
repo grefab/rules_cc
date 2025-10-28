@@ -28,6 +28,10 @@ def _should_create_empty_archive():
 def _validate_attributes(_ctx):
     pass
 
+# buildifier: disable=unused-variable
+def _validate_layering_check_features(ctx, cc_toolchain, unsupported_features):
+    pass
+
 def _get_stl():
     return attr.label()
 
@@ -155,6 +159,9 @@ def _validate_cc_compile_call(
         fail("The 'additional_include_scanning_roots' parameter doesn't do anything useful. " +
              "This is only used internally for a mechanism we'd like to get rid of.")
 
+def _needs_include_validation(language):
+    return language == "c++" or language == "cpp" or language == None
+
 semantics = struct(
     toolchain = "@bazel_tools//tools/cpp:toolchain_type",
     validate = _validate,
@@ -172,6 +179,7 @@ semantics = struct(
     ],
     ALLOWED_RULES_WITH_WARNINGS_IN_DEPS = [],
     validate_attributes = _validate_attributes,
+    validate_layering_check_features = _validate_layering_check_features,
     get_repo = _get_repo,
     get_platforms_root = _get_platforms_root,
     additional_fragments = _additional_fragments,
@@ -199,6 +207,7 @@ semantics = struct(
     CC_PROTO_TOOLCHAIN = "@rules_cc//cc/proto:toolchain_type",
     is_bazel = True,
     validate_cc_compile_call = _validate_cc_compile_call,
+    needs_include_validation = _needs_include_validation,
     extra_exec_groups = {},
     stamp_extra_docs = "",
     malloc_docs = """

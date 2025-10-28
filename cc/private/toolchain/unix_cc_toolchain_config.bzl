@@ -30,6 +30,7 @@ load(
     "with_feature_set",
 )
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("@rules_cc//cc/toolchains:cc_toolchain_config_info.bzl", "CcToolchainConfigInfo")
 
 def _target_os_version(ctx):
     platform_type = ctx.fragments.apple.single_arch_platform.platform_type
@@ -1370,6 +1371,7 @@ def _impl(ctx):
                 flag_groups = [
                     flag_group(
                         flags = [
+                            "-no_warning_for_no_symbols",
                             "-static",
                             "-o",
                             "%{output_execpath}",
