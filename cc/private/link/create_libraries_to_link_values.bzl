@@ -14,7 +14,7 @@
 # LINT.IfChange(forked_exports)
 """Goes over LibraryToLinks and produces LibraryToLinkValue-s."""
 
-load("//cc/common:cc_helper_internal.bzl", "is_shared_library", "is_versioned_shared_library")
+load("//cc/common:cc_helper_internal.bzl", "is_shared_library", "is_versioned_shared_library", "root_relative_path")
 
 # Types of LibraryToLinkValues
 _TYPE = struct(
@@ -286,11 +286,12 @@ def _add_dynamic_library_to_link(
     # -l:libfoo.so.1 -> libfoo.so.1
     has_compatible_name = (
         name.startswith("lib") or
-        (not name.endswith(".so") and not name.endswith(".dylib") and not name.endswith(".dll"))
+        (not name.endswith(".so") and not name.endswith(".dylib") and
+         not name.endswith(".dll") and not name.endswith(".pyd"))
     )
     if shared_library and has_compatible_name:
         lib_name = name.removeprefix("lib").removesuffix(".so").removesuffix(".dylib") \
-            .removesuffix(".dll")
+            .removesuffix(".dll").removesuffix(".pyd")
         libraries_to_link_values.append(
             _NamedLibraryInfo(
                 type = _TYPE.DYNAMIC_LIBRARY,
@@ -352,7 +353,7 @@ def process_objects_for_lto(
         for orig_object in object_files:
             object = lto_map.pop(orig_object, orig_object)
             mapped_object_files.append(object)
-            if object == orig_object or object.short_path.startswith(shared_non_lto_obj_root_prefix):
+            if object == orig_object or root_relative_path(object).startswith(shared_non_lto_obj_root_prefix):
                 remaining_object_files.append(object)
     else:
         mapped_object_files = [lto_map.pop(obj, obj) for obj in object_files] if lto_map else object_files

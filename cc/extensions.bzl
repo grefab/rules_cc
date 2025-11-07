@@ -35,11 +35,20 @@ def _compatibility_proxy_repo_impl(rctx):
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 bzl_library(
   name = "proxy_bzl",
-  srcs = ["proxy.bzl", "symbols.bzl"],
+  srcs = ["proxy.bzl"],
   deps = [
     "@rules_cc//cc/private/rules_impl:core_rules",
     "@rules_cc//cc/private/rules_impl:toolchain_rules",
     "@rules_cc//cc/private:cc_common",
+  ],
+  visibility = ["@rules_cc//cc:__subpackages__"],
+)
+bzl_library(
+  name = "symbols_bzl",
+  srcs = ["symbols.bzl"],
+  deps = [
+    "@rules_cc//cc/private:cc_common",
+    "@rules_cc//cc/private/toolchain_config:toolchain_config_bzl",
   ],
   visibility = ["@rules_cc//cc:__subpackages__"],
 )
@@ -88,11 +97,14 @@ load("@rules_cc//cc/private:cc_common.bzl", _cc_common = "cc_common")
 load("@rules_cc//cc/private:cc_info.bzl", _CcInfo = "CcInfo")
 load("@rules_cc//cc/private/toolchain_config:cc_toolchain_config_info.bzl", _CcToolchainConfigInfo = "CcToolchainConfigInfo")
 load("@rules_cc//cc/private:debug_package_info.bzl", _DebugPackageInfo = "DebugPackageInfo")
+load("@rules_cc//cc/private:objc_info.bzl", _ObjcInfo = "ObjcInfo")
 
 cc_common = _cc_common
 CcInfo = _CcInfo
 DebugPackageInfo = _DebugPackageInfo
 CcToolchainConfigInfo = _CcToolchainConfigInfo
+ObjcInfo = _ObjcInfo
+new_objc_provider = _ObjcInfo
             """,
         )
     else:
@@ -102,7 +114,13 @@ CcToolchainConfigInfo = _CcToolchainConfigInfo
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 bzl_library(
   name = "proxy_bzl",
-  srcs = ["proxy.bzl", "symbols.bzl"],
+  srcs = ["proxy.bzl"],
+  deps = ["@rules_cc//cc/private/rules_impl:native_bzl"],
+  visibility = ["@rules_cc//cc:__subpackages__"],
+)
+bzl_library(
+  name = "symbols_bzl",
+  srcs = ["symbols.bzl"],
   deps = ["@rules_cc//cc/private/rules_impl:native_bzl"],
   visibility = ["@rules_cc//cc:__subpackages__"],
 )
@@ -143,6 +161,8 @@ cc_common = native_cc_common
 CcInfo = NativeCcInfo
 DebugPackageInfo = NativeDebugPackageInfo
 CcToolchainConfigInfo = NativeCcToolchainConfigInfo
+ObjcInfo = apple_common.Objc
+new_objc_provider = apple_common.new_objc_provider
             """,
         )
 

@@ -79,7 +79,9 @@ PRIVATE_STARLARKIFICATION_ALLOWLIST = [
     ("", "third_party/bazel_rules/rules_rust/rust/private"),
     ("rules_rust", "rust/private"),
     # Python rules
-    ("", "third_party/bazel_rules/rules_python/google"),
+    ("", "third_party/bazel_rules/rules_python"),
+    # Various
+    ("", "research/colab"),
 ] + CREATE_COMPILE_ACTION_API_ALLOWLISTED_PACKAGES
 
 _CC_SOURCE = [".cc", ".cpp", ".cxx", ".c++", ".C", ".cu", ".cl"]
@@ -96,7 +98,7 @@ _ARCHIVE = [".a", ".lib"]
 _PIC_ARCHIVE = [".pic.a"]
 _ALWAYSLINK_LIBRARY = [".lo"]
 _ALWAYSLINK_PIC_LIBRARY = [".pic.lo"]
-_SHARED_LIBRARY = [".so", ".dylib", ".dll", ".wasm"]
+_SHARED_LIBRARY = [".so", ".dylib", ".dll", ".pyd", ".wasm"]
 _INTERFACE_SHARED_LIBRARY = [".ifso", ".tbd", ".lib", ".dll.a"]
 _OBJECT_FILE = [".o", ".obj"]
 _PIC_OBJECT_FILE = [".pic.o"]
@@ -170,7 +172,7 @@ _ArtifactCategoryInfo, _unused_new_aci = provider(
 _artifact_categories = [
     _ArtifactCategoryInfo("STATIC_LIBRARY", "lib", ".a", ".lib"),
     _ArtifactCategoryInfo("ALWAYSLINK_STATIC_LIBRARY", "lib", ".lo", ".lo.lib"),
-    _ArtifactCategoryInfo("DYNAMIC_LIBRARY", "lib", ".so", ".dylib", ".dll", ".wasm"),
+    _ArtifactCategoryInfo("DYNAMIC_LIBRARY", "lib", ".so", ".dylib", ".dll", ".pyd", ".wasm"),
     _ArtifactCategoryInfo("EXECUTABLE", "", "", ".exe", ".wasm"),
     _ArtifactCategoryInfo("INTERFACE_LIBRARY", "lib", ".ifso", ".tbd", ".if.lib", ".lib"),
     _ArtifactCategoryInfo("PIC_FILE", "", ".pic"),
@@ -178,9 +180,7 @@ _artifact_categories = [
     _ArtifactCategoryInfo("SERIALIZED_DIAGNOSTICS_FILE", "", ".dia"),
     _ArtifactCategoryInfo("OBJECT_FILE", "", ".o", ".obj"),
     _ArtifactCategoryInfo("PIC_OBJECT_FILE", "", ".pic.o"),
-    _ArtifactCategoryInfo("CPP_MODULE", "", ".pcm"),
-    _ArtifactCategoryInfo("CPP_MODULE_GCM", "", ".gcm"),
-    _ArtifactCategoryInfo("CPP_MODULE_IFC", "", ".ifc"),
+    _ArtifactCategoryInfo("CPP_MODULE", "", ".pcm", ".gcm", ".ifc"),
     _ArtifactCategoryInfo("CPP_MODULES_INFO", "", ".CXXModules.json"),
     _ArtifactCategoryInfo("CPP_MODULES_DDI", "", ".ddi"),
     _ArtifactCategoryInfo("CPP_MODULES_MODMAP", "", ".modmap"),
@@ -283,7 +283,8 @@ def is_stamping_enabled(ctx):
         ctx: The rule context.
 
     Returns:
-    (int): 1: Always stamp the build information into the binary, even in [--nostamp][stamp] builds.
+        (int) Possible values are:
+        1: Always stamp the build information into the binary, even in [--nostamp][stamp] builds.
         This setting should be avoided, since it potentially kills remote caching for the binary and
         any downstream actions that depend on it.
         0: Always replace build information by constant values. This gives good build result caching.
@@ -340,3 +341,23 @@ def get_relative_path(path_a, path_b):
 
 def path_contains_up_level_references(path):
     return path.startswith("..") and (len(path) == 2 or path[2] == "/")
+
+def root_relative_path(file):
+    """Returns the path of `file` relative to its root.
+
+    A Starlark implementation of `Artifact.getRootRelativePath()`.
+
+    Args:
+        file: (File) The file to get the root-relative path for.
+
+    Returns:
+        (str) The root-relative path of the file.
+    """
+    if not file.is_source:
+        return paths.relativize(file.path, file.root.path)
+    short_path = file.short_path
+    if not short_path.startswith("../"):
+        return short_path
+
+    # This is a file in an external repo, skip over the repo name.
+    return short_path[short_path.index("/", 3) + 1:]

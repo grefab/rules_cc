@@ -98,7 +98,7 @@ bzl_library(
 bzl_library(
     name = "cc_toolchain_config_lib_bzl",
     srcs = ["cc_toolchain_config_lib.bzl"],
-    visibility = ["//cc/toolchains:__subpackages__"],
+    visibility = ["//cc:__subpackages__"],
 )
 
 bzl_library(
@@ -118,6 +118,7 @@ bzl_library(
     deps = [
         ":core_rules",
         "//cc/common",
+        "//cc/common:cc_helper_bzl",
         "//cc/private/rules_impl:failing_cc_proto_library_bzl",
         "//cc/toolchains:toolchain_rules",
     ],
