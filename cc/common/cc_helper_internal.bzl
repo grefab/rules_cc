@@ -56,7 +56,9 @@ PRIVATE_STARLARKIFICATION_ALLOWLIST = [
     # Apple rules
     ("", "third_party/bazel_rules/rules_apple"),
     ("apple_support", ""),
+    ("build_bazel_apple_support", ""),
     ("rules_apple", ""),
+    ("build_bazel_rules_apple", ""),
     # C++ rules
     ("", "bazel_internal/test_rules/cc"),
     ("", "third_party/bazel_rules/rules_cc"),
@@ -82,6 +84,7 @@ PRIVATE_STARLARKIFICATION_ALLOWLIST = [
     ("", "third_party/bazel_rules/rules_python"),
     # Various
     ("", "research/colab"),
+    ("", "javatests/com/google/devtools/grok/kythe"),
 ] + CREATE_COMPILE_ACTION_API_ALLOWLISTED_PACKAGES
 
 _CC_SOURCE = [".cc", ".cpp", ".cxx", ".c++", ".C", ".cu", ".cl"]
@@ -354,7 +357,7 @@ def root_relative_path(file):
         (str) The root-relative path of the file.
     """
     if not file.is_source:
-        return paths.relativize(file.path, file.root.path)
+        return file.path[len(file.root.path) + 1:]
     short_path = file.short_path
     if not short_path.startswith("../"):
         return short_path

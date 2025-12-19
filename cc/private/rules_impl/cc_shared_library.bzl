@@ -21,6 +21,7 @@ load("//cc/common:cc_common.bzl", "cc_common")
 load("//cc/common:cc_helper.bzl", "cc_helper")
 load("//cc/common:cc_info.bzl", "CcInfo")
 load("//cc/common:cc_shared_library_hint_info.bzl", "CcSharedLibraryHintInfo")
+load("//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("//cc/common:semantics.bzl", "semantics")
 
 # TODO(#5200): Add export_define to library_to_link and cc_library
@@ -38,18 +39,6 @@ GraphNodeInfo = provider(
         "owners": "Owners of the linker inputs in the targets visited",
         "linkable_more_than_once": "Linkable into more than a single cc_shared_library",
     },  # buildifier: disable=unsorted-dict-items
-)
-CcSharedLibraryInfo = provider(
-    "Information about a cc shared library.",
-    fields = {
-        "dynamic_deps": "All shared libraries depended on transitively",
-        "exports": "cc_libraries that are linked statically and exported",
-        "link_once_static_libs": "All libraries linked statically into this library that should " +
-                                 "only be linked once, e.g. because they have static " +
-                                 "initializers. If we try to link them more than once, " +
-                                 "we will throw an error",
-        "linker_input": "the resulting linker input artifact for the shared library",
-    },
 )
 
 def _programmatic_error(message = ""):
@@ -298,7 +287,7 @@ def _wrap_static_library_with_alwayslink(ctx, feature_configuration, cc_toolchai
     return cc_common.create_linker_input(
         owner = linker_input.owner,
         libraries = depset(direct = new_libraries_to_link),
-        user_link_flags = depset(direct = linker_input.user_link_flags),
+        user_link_flags = linker_input.user_link_flags,
         additional_inputs = depset(direct = linker_input.additional_inputs),
     )
 
@@ -1137,7 +1126,7 @@ The <code>cc_shared_library</code> implementation will use the list of
 current target's <code>dynamic_deps</code>) to decide which <code>cc_libraries</code> in
 the transitive <code>deps</code> should not be linked in because they are already provided
 by a different <code>cc_shared_library</code>.
-        """,
+        """ + semantics.dynamic_deps_extra_docs,
     ),
     "_deps_analyzed_by_graph_structure_aspect": attr.label_list(
         providers = [CcInfo],

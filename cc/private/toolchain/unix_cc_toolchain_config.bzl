@@ -422,6 +422,14 @@ def _impl(ctx):
                 with_features = [with_feature_set(features = ["opt"])],
             ),
             flag_set(
+                actions = all_compile_actions,
+                flag_groups = ([
+                    flag_group(
+                        flags = ctx.attr.all_compile_flags,
+                    ),
+                ] if ctx.attr.all_compile_flags else []),
+            ),
+            flag_set(
                 actions = [ACTION_NAMES.c_compile],
                 flag_groups = ([
                     flag_group(
@@ -1375,6 +1383,7 @@ def _impl(ctx):
                 flag_groups = [
                     flag_group(
                         flags = [
+                            "-D",
                             "-no_warning_for_no_symbols",
                             "-static",
                             "-o",
@@ -1593,6 +1602,14 @@ def _impl(ctx):
                 ] if ctx.attr.coverage_link_flags else []),
             ),
         ],
+    )
+
+    no_use_lto_indexing_bitcode_file_feature = feature(
+        name = "no_use_lto_indexing_bitcode_file",
+    )
+
+    use_lto_native_object_directory_feature = feature(
+        name = "use_lto_native_object_directory",
     )
 
     thinlto_feature = feature(
@@ -1819,6 +1836,8 @@ def _impl(ctx):
             fdo_instrument_feature,
             cs_fdo_instrument_feature,
             cs_fdo_optimize_feature,
+            no_use_lto_indexing_bitcode_file_feature,
+            use_lto_native_object_directory_feature,
             thinlto_feature,
             fdo_prefetch_hints_feature,
             autofdo_feature,
@@ -1956,6 +1975,7 @@ cc_toolchain_config = rule(
         "abi_version": attr.string(mandatory = True),
         "archive_flags": attr.string_list(),
         "builtin_sysroot": attr.string(),
+        "all_compile_flags": attr.string_list(),
         "compile_flags": attr.string_list(),
         "compiler": attr.string(mandatory = True),
         "conly_flags": attr.string_list(),
