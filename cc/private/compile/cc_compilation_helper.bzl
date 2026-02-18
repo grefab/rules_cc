@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# LINT.IfChange(forked_exports)
 """Compilation helper for C++ rules."""
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
@@ -21,7 +20,7 @@ load(
     "package_source_root",
     "repository_exec_path",
 )
-load("//cc/common:semantics.bzl", "USE_EXEC_ROOT_FOR_VIRTUAL_INCLUDES_SYMLINKS")
+load("//cc/common:semantics.bzl", "STRIP_INCLUDE_PREFIX_APPLIES_TO_TEXTUAL_HEADERS", "USE_EXEC_ROOT_FOR_VIRTUAL_INCLUDES_SYMLINKS")
 load("//cc/private:cc_info.bzl", "create_compilation_context", "create_module_map")
 load("//cc/private:cc_internal.bzl", _cc_internal = "cc_internal")
 
@@ -60,7 +59,9 @@ def _compute_public_headers(
         binfiles_dir,
         non_module_map_headers,
         is_sibling_repository_layout,
-        shorten_virtual_includes):
+        shorten_virtual_includes,
+        *,
+        must_use_strip_prefix = True):
     if include_prefix:
         if not paths.is_normalized(include_prefix, False):
             fail("include prefix should not contain uplevel references: " + include_prefix)
@@ -117,7 +118,7 @@ def _compute_public_headers(
             headers = public_headers_artifacts + non_module_map_headers,
             module_map_headers = public_headers_artifacts,
             virtual_include_path = None,
-            virtual_to_original_headers = depset(),
+            virtual_to_original_headers = [],
         )
 
     module_map_headers = []
@@ -130,6 +131,10 @@ def _compute_public_headers(
     for original_header in public_headers_artifacts:
         repo_relative_path = _repo_relative_path(original_header)
         if not repo_relative_path.startswith(strip_prefix):
+            if not must_use_strip_prefix:
+                module_map_headers.append(original_header)
+                continue
+
             fail("header '{}' is not under the specified strip prefix '{}'".format(repo_relative_path, strip_prefix))
         include_path = paths.relativize(repo_relative_path, strip_prefix)
         if include_prefix != None:
@@ -153,7 +158,7 @@ def _compute_public_headers(
         headers = virtual_headers,
         module_map_headers = module_map_headers,
         virtual_include_path = paths.join(binfiles_dir, virtual_include_dir),
-        virtual_to_original_headers = depset(virtual_to_original_headers_list),
+        virtual_to_original_headers = virtual_to_original_headers_list,
     )
 
 def _generates_header_module(feature_configuration, public_headers, private_headers, generate_action):
@@ -176,25 +181,26 @@ def _collect_module_maps(deps, cc_toolchain_compilation_context, additional_cpp_
     # It should be evaluated whether this is ok.  If this turned into a problem at some
     # point, we could probably just declare two different modules with different use-declarations
     # in the module map file.
-    module_maps = []
+    direct_module_maps = []
+    transitive_module_maps = []
     for cc_context in deps:
         if cc_context._module_map != None:
-            module_maps.append(cc_context._module_map)
-        module_maps.extend(cc_context._exporting_module_maps)
+            direct_module_maps.append(cc_context._module_map)
+        transitive_module_maps.append(cc_context._exporting_module_maps)
 
     if cc_toolchain_compilation_context != None and cc_toolchain_compilation_context._module_map != None:
-        module_maps.append(cc_toolchain_compilation_context._module_map)
+        direct_module_maps.append(cc_toolchain_compilation_context._module_map)
 
-    for additional_cpp_module_map in additional_cpp_module_maps:
-        module_maps.append(additional_cpp_module_map)
+    direct_module_maps.extend(additional_cpp_module_maps)
 
-    return module_maps
+    return depset(direct = direct_module_maps, transitive = transitive_module_maps)
 
 _ModuleMapInfo = provider(
     doc = "An internal provider for create_module_map_action().",
     fields = [
         "module_map",
         "public_headers",
+        "textual_headers",
         "private_headers",
         "dependency_module_maps",
         "additional_exported_headers",
@@ -249,6 +255,12 @@ def _module_map_struct_to_module_map_content(parameters, tree_expander):
         add_header(path = header.path, visibility = "", can_compile = True)
         added_paths.add(header.path)
 
+    for header in expanded(parameters.textual_headers):
+        if header.path in added_paths:
+            continue
+        add_header(path = header.path, visibility = "", can_compile = False)
+        added_paths.add(header.path)
+
     for header in expanded(parameters.private_headers):
         if header.path in added_paths:
             continue
@@ -267,7 +279,8 @@ def _module_map_struct_to_module_map_content(parameters, tree_expander):
         add_header(path = path, visibility = "", can_compile = False)
         added_paths.add(path)
 
-    for dep in parameters.dependency_module_maps:
+    dependency_module_maps = parameters.dependency_module_maps.to_list()
+    for dep in dependency_module_maps:
         lines.append("  use \"" + dep.name + "\"")
 
     if parameters.separate_module_headers:
@@ -284,13 +297,13 @@ def _module_map_struct_to_module_map_content(parameters, tree_expander):
             add_header(path = header.path, visibility = "", can_compile = True)
             added_paths.add(header.path)
 
-        for dep in parameters.dependency_module_maps:
+        for dep in dependency_module_maps:
             lines.append("  use \"" + dep.name + "\"")
 
     lines.append("}")
 
     if parameters.extern_dependencies:
-        for dep in parameters.dependency_module_maps:
+        for dep in dependency_module_maps:
             lines.append(
                 "extern module \"" + dep.name + "\" \"" +
                 parameters.leading_periods + dep.file.path + "\"",
@@ -303,6 +316,7 @@ def _create_module_map_action(
         module_map,
         private_headers,
         public_headers,
+        textual_headers,
         dependency_module_maps,
         additional_exported_headers,
         separate_module_headers,
@@ -316,12 +330,12 @@ def _create_module_map_action(
     leading_periods = "" if module_map_home_is_cwd else "../" * segments_to_exec_path
     public_headers = _cc_internal.freeze(public_headers)
     private_headers = _cc_internal.freeze(private_headers)
-    dependency_module_maps = _cc_internal.freeze(dependency_module_maps)
     additional_exported_headers = _cc_internal.freeze(additional_exported_headers)
     separate_module_headers = _cc_internal.freeze(separate_module_headers)
     data_struct = _ModuleMapInfo(
         module_map = module_map,
         public_headers = public_headers,
+        textual_headers = textual_headers,
         private_headers = private_headers,
         dependency_module_maps = dependency_module_maps,
         additional_exported_headers = additional_exported_headers,
@@ -339,6 +353,7 @@ def _create_module_map_action(
     # simple null function.
     tree_artifacts = [h for h in private_headers if h.is_directory]
     tree_artifacts += [h for h in public_headers if h.is_directory]
+    tree_artifacts += [h for h in textual_headers if h.is_directory]
     content.add_all(tree_artifacts, map_each = lambda x: None, allow_closure = True)
 
     actions.write(module_map.file, content = content, is_executable = True, mnemonic = "CppModuleMap")
@@ -433,15 +448,34 @@ def _init_cc_compilation_context(
         else:
             include_dirs_for_context.append(public_headers.virtual_include_path)
 
+    textual_headers = _compute_public_headers(
+        actions,
+        config,
+        public_textual_headers,
+        include_prefix,
+        strip_include_prefix if STRIP_INCLUDE_PREFIX_APPLIES_TO_TEXTUAL_HEADERS else None,
+        label,
+        binfiles_dir,
+        non_module_map_headers,
+        sibling_repo_layout,
+        shorten_virtual_includes,
+        must_use_strip_prefix = False,
+    )
+    if textual_headers.virtual_include_path:
+        if external or feature_configuration.is_requested("system_include_paths"):
+            external_include_dirs.append(textual_headers.virtual_include_path)
+        else:
+            include_dirs_for_context.append(textual_headers.virtual_include_path)
+
     if config.coverage_enabled:
         # Populate the map only when code coverage collection is enabled, to report the actual
         # source file name in the coverage output file.
-        virtual_to_original_headers = public_headers.virtual_to_original_headers
+        virtual_to_original_headers = public_headers.virtual_to_original_headers + textual_headers.virtual_to_original_headers
     else:
-        virtual_to_original_headers = depset()
+        virtual_to_original_headers = []
 
     declared_include_srcs.extend(public_headers.headers)
-    declared_include_srcs.extend(public_textual_headers)
+    declared_include_srcs.extend(textual_headers.headers)
     declared_include_srcs.extend(private_headers_artifacts)
     declared_include_srcs.extend(additional_inputs)
 
@@ -488,8 +522,10 @@ def _init_cc_compilation_context(
 
             if _enabled(feature_configuration, "only_doth_headers_in_module_maps"):
                 public_headers_for_module_map_action = [header for header in public_headers.module_map_headers if (header.is_directory or header.extension == "h")]
+                textual_headers_for_module_map_action = [header for header in textual_headers.module_map_headers if (header.is_directory or header.extension == "h")]
             else:
                 public_headers_for_module_map_action = public_headers.module_map_headers
+                textual_headers_for_module_map_action = textual_headers.module_map_headers
 
             private_headers_for_module_map_action = private_headers_artifacts
             if _enabled(feature_configuration, "exclude_private_headers_in_module_maps"):
@@ -499,6 +535,7 @@ def _init_cc_compilation_context(
                 actions = actions,
                 module_map = module_map,
                 public_headers = public_headers_for_module_map_action,
+                textual_headers = textual_headers_for_module_map_action,
                 separate_module_headers = separate_public_headers.module_map_headers,
                 dependency_module_maps = dependency_module_maps,
                 private_headers = private_headers_for_module_map_action,
@@ -559,7 +596,7 @@ def _init_cc_compilation_context(
         external_includes = depset(external_include_dirs),
         system_includes = depset(system_include_dirs_for_context),
         includes = depset(include_dirs_for_context),
-        virtual_to_original_headers = virtual_to_original_headers,
+        virtual_to_original_headers = depset(virtual_to_original_headers),
         dependent_cc_compilation_contexts = dependent_cc_compilation_contexts,
         non_code_inputs = additional_inputs,
         defines = depset(defines),
@@ -567,7 +604,7 @@ def _init_cc_compilation_context(
         headers = depset(declared_include_srcs),
         direct_public_headers = public_headers.headers,
         direct_private_headers = private_headers_artifacts,
-        direct_textual_headers = public_textual_headers,
+        direct_textual_headers = textual_headers.headers,
         module_map = module_map,
         pic_header_module = pic_header_module,
         header_module = header_module,
@@ -585,7 +622,7 @@ def _init_cc_compilation_context(
             external_includes = depset(external_include_dirs),
             system_includes = depset(system_include_dirs_for_context),
             includes = depset(include_dirs_for_context),
-            virtual_to_original_headers = virtual_to_original_headers,
+            virtual_to_original_headers = depset(virtual_to_original_headers),
             dependent_cc_compilation_contexts = dependent_cc_compilation_contexts + implementation_deps,
             non_code_inputs = additional_inputs,
             defines = depset(defines),
@@ -593,7 +630,7 @@ def _init_cc_compilation_context(
             headers = depset(declared_include_srcs),
             direct_public_headers = public_headers.headers,
             direct_private_headers = private_headers_artifacts,
-            direct_textual_headers = public_textual_headers,
+            direct_textual_headers = textual_headers.headers,
             module_map = module_map,
             pic_header_module = pic_header_module,
             header_module = header_module,
@@ -627,5 +664,3 @@ def serialized_diagnostics_file_enabled(feature_configuration):
 cc_compilation_helper = struct(
     init_cc_compilation_context = _init_cc_compilation_context,
 )
-
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/compile/cc_compilation_helper.bzl:forked_exports)

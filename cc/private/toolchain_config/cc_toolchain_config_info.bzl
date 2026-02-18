@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# LINT.IfChange(forked_exports)
 """Information describing C++ toolchain derived from CROSSTOOL file."""
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
@@ -103,7 +102,12 @@ def create_cc_toolchain_config_info(
             default_compile_flags = ([f for f in features if f.name == "default_compile_flags"])[0]
             legacy_features.append(default_compile_flags)
         platform = "mac" if target_libc == "macosx" else "linux"
-        legacy_features.extend(get_legacy_features(platform, feature_names, linker_tool_path))
+        legacy_features.extend(get_legacy_features(
+            ctx,
+            platform,
+            feature_names,
+            linker_tool_path,
+        ))
         legacy_features.extend([f for f in features if f.name not in ["legacy_compile_flags", "default_compile_flags"]])
         legacy_features.extend(get_features_to_appear_last(feature_names))
 
@@ -137,5 +141,3 @@ def create_cc_toolchain_config_info(
         tool_paths = tool_paths,
         toolchain_id = toolchain_identifier,
     )
-
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/toolchain_config/cc_toolchain_config_info.bzl:forked_exports)

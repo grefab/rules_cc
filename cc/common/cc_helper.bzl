@@ -28,20 +28,18 @@ load(
     _is_stamping_enabled = "is_stamping_enabled",
     _package_source_root = "package_source_root",
     _repository_exec_path = "repository_exec_path",
+    _should_stamp = "should_stamp",
 )
 load(":cc_info.bzl", "CcInfo")
+load(":semantics.bzl", "semantics")
 load(":visibility.bzl", "INTERNAL_VISIBILITY")
 
 visibility(INTERNAL_VISIBILITY)
 
-# LINT.IfChange(linker_mode)
 linker_mode = struct(
     LINKING_DYNAMIC = "dynamic_linking_mode",
     LINKING_STATIC = "static_linking_mode",
 )
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/cc_helper.bzl:linker_mode)
-
-# LINT.IfChange(forked_exports)
 
 cpp_file_types = struct(
     LINKER_SCRIPT = ["ld", "lds", "ldscript"],
@@ -927,6 +925,9 @@ def _copts_filter(ctx, additional_make_variable_substitutions):
     if nocopts == None or len(nocopts) == 0:
         return nocopts
 
+    if semantics.is_allowed_nocopts(nocopts):
+        return nocopts
+
     # Check if nocopts is disabled.
     if ctx.fragments.cpp.disable_nocopts():
         fail("This attribute was removed. See https://github.com/bazelbuild/bazel/issues/8706 for details.", attr = "nocopts")
@@ -1136,6 +1137,7 @@ cc_helper = struct(
     get_local_defines_for_runfiles_lookup = _get_local_defines_for_runfiles_lookup,
     linker_scripts = _linker_scripts,
     is_stamping_enabled = _is_stamping_enabled,
+    should_stamp = _should_stamp,
     is_test_target = _is_test_target,
     get_linked_artifact = _get_linked_artifact,
     should_create_per_object_debug_info = should_create_per_object_debug_info,
@@ -1143,4 +1145,3 @@ cc_helper = struct(
     package_exec_path = _package_exec_path,
     should_create_test_dwp_for_statically_linked_test = _should_create_test_dwp_for_statically_linked_test,
 )
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/cc_helper.bzl:forked_exports)

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# LINT.IfChange(forked_exports)
 """
 Utility functions for C++ rules that don't depend on cc_common.
 
@@ -43,6 +42,8 @@ def wrap_with_check_private_api(symbol):
 CPP_SOURCE_TYPE_HEADER = "HEADER"
 CPP_SOURCE_TYPE_SOURCE = "SOURCE"
 CPP_SOURCE_TYPE_CLIF_INPUT_PROTO = "CLIF_INPUT_PROTO"
+
+# LINT.IfChange(forked_exports)
 
 CREATE_COMPILE_ACTION_API_ALLOWLISTED_PACKAGES = [("", "devtools/rust/cc_interop"), ("", "third_party/crubit"), ("", "tools/build_defs/clif")]
 
@@ -86,6 +87,8 @@ PRIVATE_STARLARKIFICATION_ALLOWLIST = [
     ("", "research/colab"),
     ("", "javatests/com/google/devtools/grok/kythe"),
 ] + CREATE_COMPILE_ACTION_API_ALLOWLISTED_PACKAGES
+
+# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/cc_helper_internal.bzl:forked_exports)
 
 _CC_SOURCE = [".cc", ".cpp", ".cxx", ".c++", ".C", ".cu", ".cl"]
 _C_SOURCE = [".c"]
@@ -280,7 +283,7 @@ def repository_exec_path(repository, sibling_repository_layout):
     return get_relative_path(prefix, repository)
 
 def is_stamping_enabled(ctx):
-    """Returns whether to encode build information into the binary.
+    """Returns the tri-state of whether to encode build information into the binary.
 
     Args:
         ctx: The rule context.
@@ -299,6 +302,22 @@ def is_stamping_enabled(ctx):
     if hasattr(ctx.attr, "stamp"):
         stamp = ctx.attr.stamp
     return stamp
+
+def should_stamp(ctx):
+    """Returns whether stamping should actually be performed based on stamp attribute and config.
+
+    Unlike is_stamping_enabled, this takes into account the --[no]stamp Blaze flag, so the return value is a boolean, not a tri-state.
+
+    Args:
+        ctx: The rule context.
+
+    Returns:
+        true if stamping should be performed, false otherwise.
+    """
+    stamping_tri_state = is_stamping_enabled(ctx)
+    return False if ctx.configuration.is_tool_configuration() else (
+        stamping_tri_state == 1 or (stamping_tri_state == -1 and ctx.configuration.stamp_binaries())
+    )
 
 def is_shared_library(file):
     return file.extension in ["so", "dylib", "dll", "pyd", "wasm", "tgt", "vpi"]
@@ -334,8 +353,6 @@ def use_pic_for_dynamic_libs(cpp_config, feature_configuration):
     """
     return (cpp_config.force_pic() or
             feature_configuration.is_enabled("supports_pic"))
-
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/cc_helper_internal.bzl:forked_exports)
 
 def get_relative_path(path_a, path_b):
     if is_path_absolute(path_b):

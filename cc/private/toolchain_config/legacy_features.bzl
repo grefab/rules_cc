@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# LINT.IfChange(forked_exports)
 """Helper methods for legacy features"""
 
 load("//cc:action_names.bzl", "ACTION_NAMES")
@@ -22,12 +21,13 @@ load(
     "feature_set",
     "flag_group",
     "flag_set",
+    "get_profile_correction_flags",
     "tool",
     "variable_with_value",
     "with_feature_set",
 )
 
-def get_legacy_features(platform, existing_feature_names, linker_tool_path):
+def get_legacy_features(ctx, platform, existing_feature_names, linker_tool_path):
     """The features added to all legacy toolchains
 
     Note: these features won't be added to the crosstools that defines
@@ -35,6 +35,7 @@ def get_legacy_features(platform, existing_feature_names, linker_tool_path):
     to be modified separately.
 
     Args:
+        ctx: bazel rule context
         platform: (str) One of 'linux' or 'mac'
         existing_feature_names: ([str])
         linker_tool_path: (str)
@@ -42,6 +43,7 @@ def get_legacy_features(platform, existing_feature_names, linker_tool_path):
     Returns:
         ([FeatureInfo])
     """
+    profile_correction_flags = get_profile_correction_flags(ctx)
     result = []
     if "legacy_compile_flags" not in existing_feature_names:
         result.append(feature(
@@ -286,8 +288,7 @@ def get_legacy_features(platform, existing_feature_names, linker_tool_path):
                         "-fprofile-use=%{fdo_profile_path}",
                         "-Wno-profile-instr-unprofiled",
                         "-Wno-profile-instr-out-of-date",
-                        "-fprofile-correction",
-                    ],
+                    ] + profile_correction_flags,
                 )],
             )],
         ))
@@ -327,8 +328,7 @@ def get_legacy_features(platform, existing_feature_names, linker_tool_path):
                         "-fprofile-use=%{fdo_profile_path}",
                         "-Wno-profile-instr-unprofiled",
                         "-Wno-profile-instr-out-of-date",
-                        "-fprofile-correction",
-                    ],
+                    ] + profile_correction_flags,
                 )],
             )],
         ))
@@ -365,8 +365,7 @@ def get_legacy_features(platform, existing_feature_names, linker_tool_path):
                     expand_if_available = "fdo_profile_path",
                     flags = [
                         "-fauto-profile=%{fdo_profile_path}",
-                        "-fprofile-correction",
-                    ],
+                    ] + profile_correction_flags,
                 )],
             )],
         ))
@@ -402,21 +401,6 @@ def get_legacy_features(platform, existing_feature_names, linker_tool_path):
                     )],
                 ),
             ],
-        ))
-
-    if "memprof_optimize" not in existing_feature_names:
-        result.append(feature(
-            name = "memprof_optimize",
-            flag_sets = [flag_set(
-                actions = [
-                    ACTION_NAMES.c_compile,
-                    ACTION_NAMES.cpp_compile,
-                ],
-                flag_groups = [flag_group(
-                    expand_if_available = "memprof_profile_path",
-                    flags = ["-memprof-profile-file=%{memprof_profile_path}"],
-                )],
-            )],
         ))
 
     if "build_interface_libraries" not in existing_feature_names:
@@ -1401,5 +1385,3 @@ def _platform_specific_value(platform, *, linux, mac):
     if platform == "mac":
         return mac
     fail("unexpected platform:", platform)
-
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/toolchain_config/legacy_features.bzl:forked_exports)

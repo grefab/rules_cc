@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# LINT.IfChange(forked_exports)
 """Common functions that create C++ link and LTO indexing action."""
 
 load("//cc/common:semantics.bzl", "semantics")
@@ -21,7 +20,7 @@ load("//cc/private/link:collect_solib_dirs.bzl", "collect_solib_dirs")
 load("//cc/private/link:create_libraries_to_link_values.bzl", "add_libraries_to_link", "add_object_files_to_link", "process_objects_for_lto")
 load("//cc/private/link:link_build_variables.bzl", "setup_common_linking_variables")
 load("//cc/private/link:target_types.bzl", "LINKING_MODE", "LINK_TARGET_TYPE", "USE_ARCHIVER", "USE_LINKER", "is_dynamic_library")
-load("//cc/private/rules_impl:native.bzl", _cc_common_internal = "native_cc_common")
+load("//cc/private/rules_impl:native_cc_common.bzl", _cc_common_internal = "native_cc_common")
 
 def finalize_link_action(
         actions,
@@ -371,7 +370,7 @@ def _create_action(
     if "cpp_link" in _cc_internal.actions2ctx_cheat(actions).exec_groups:
         # TODO(b/338618120): ^ remove cheat, no idea how though, maybe always use cpp_link exec group?
         exec_group = "cpp_link"
-    elif "@@bazel_tools//tools/cpp:toolchain_type" in _cc_internal.actions2ctx_cheat(actions).toolchains:
+    elif "@@bazel_tools//tools/cpp:toolchain_type" in _cc_internal.actions2ctx_cheat(actions).toolchains:  # buildifier: disable=canonical-repository
         # TODO(b/338618120): ^ remove cheat, needs depot cleanup, always use a toolchain
         toolchain = semantics.toolchain
 
@@ -468,5 +467,3 @@ def _resource_set(os, inputs):
         return {"memory": max(50, -100 + 0.1 * inputs), "cpu": 1}
     else:
         return {"memory": 1500 + inputs, "cpu": 1}
-
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/link/finalize_link_action.bzl:forked_exports)

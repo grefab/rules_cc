@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# LINT.IfChange(forked_exports)
 """Functions that create C++ link action."""
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
@@ -21,7 +20,7 @@ load("//cc/private/link:finalize_link_action.bzl", "finalize_link_action")
 load("//cc/private/link:link_build_variables.bzl", "setup_linking_variables")
 load("//cc/private/link:lto_backends.bzl", "create_shared_non_lto_artifacts")
 load("//cc/private/link:target_types.bzl", "LINK_TARGET_TYPE", "USE_ARCHIVER", "USE_LINKER", "is_dynamic_library")
-load("//cc/private/rules_impl:native.bzl", _cc_common_internal = "native_cc_common")
+load("//cc/private/rules_impl:native_cc_common.bzl", _cc_common_internal = "native_cc_common")
 
 def link_action(
         *,
@@ -272,5 +271,3 @@ def _map_linkstamps_to_outputs(actions, linkstamps, output):
         stamp_output_file = actions.declare_shareable_artifact(stamp_output_path)
         map[linkstamp] = stamp_output_file
     return map
-
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/link/cpp_link_action.bzl:forked_exports)

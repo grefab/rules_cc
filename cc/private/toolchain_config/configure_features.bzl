@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# LINT.IfChange(forked_exports)
 """Helper functions for C++ feature configuration."""
 
 load("//cc:action_names.bzl", "ACTION_NAMES")
@@ -177,6 +176,8 @@ def configure_features(
              branch_fdo_provider.branch_fdo_mode == "llvm_cs_fdo") and
             "fdo_optimize" not in all_unsupported_features_set):
             all_features.append("fdo_optimize")
+            if "memprof_optimize" not in all_unsupported_features_set:
+                all_features.append("enable_fdo_memprof_optimize")
             if "thin_lto" not in all_unsupported_features_set:
                 all_features.append("enable_fdo_thinlto")
             if ("split_functions" not in all_unsupported_features_set and
@@ -229,5 +230,3 @@ def configure_features(
              "(feature named 'supports_pic' is not enabled)")
 
     return feature_configuration
-
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/toolchain_config/configure_features.bzl:forked_exports)

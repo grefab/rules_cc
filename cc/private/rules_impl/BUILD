@@ -42,7 +42,6 @@ bzl_library(
         "cc_binary.bzl",
         "cc_import.bzl",
         "cc_library.bzl",
-        "cc_postmark.bzl",
         "cc_shared_library.bzl",
         "cc_static_library.bzl",
         "cc_test.bzl",
@@ -57,6 +56,7 @@ bzl_library(
         ":objc_common",
         ":objc_compilation_support_bzl",
         "//cc:action_names_bzl",
+        "//cc:cc_postmark_bzl",
         "//cc:find_cc_toolchain_bzl",
         "//cc/common",
         "//cc/common:cc_debug_helper_bzl",
@@ -97,7 +97,7 @@ bzl_library(
         "objc_intermediate_artifacts.bzl",
         "objc_semantics.bzl",
     ],
-    visibility = ["//cc:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = [
         "//cc/common",
         "@bazel_skylib//lib:paths",
@@ -107,10 +107,7 @@ bzl_library(
 bzl_library(
     name = "objc_compilation_support_bzl",
     srcs = ["objc_compilation_support.bzl"],
-    visibility = [
-        "//cc:__subpackages__",
-        "//third_party/bazel_rules/rules_apple/apple:__subpackages__",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         ":objc_common",
         "//cc/common:cc_helper_bzl",
@@ -119,8 +116,17 @@ bzl_library(
 )
 
 bzl_library(
-    name = "native_bzl",
-    srcs = ["native.bzl"],
+    name = "native_cc_common_bzl",
+    srcs = ["native_cc_common.bzl"],
+    visibility = [
+        "//cc:__subpackages__",
+        "@cc_compatibility_proxy//:__pkg__",
+    ],
+)
+
+bzl_library(
+    name = "native_providers_bzl",
+    srcs = ["native_providers.bzl"],
     visibility = [
         "//cc:__subpackages__",
         "@cc_compatibility_proxy//:__pkg__",

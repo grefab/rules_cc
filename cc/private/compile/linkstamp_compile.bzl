@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# LINT.IfChange(forked_exports)
 """
 The cc_common.register_linkstamp_compile_action function.
 
@@ -21,7 +20,7 @@ Used for C++ linkstamp compiling.
 load("//cc:action_names.bzl", "LINKSTAMP_COMPILE_ACTION_NAME")
 load(
     "//cc/common:cc_helper_internal.bzl",
-    "is_stamping_enabled",
+    "should_stamp",
 )
 load("//cc/common:semantics.bzl", cc_semantics = "semantics")
 load("//cc/private:cc_info.bzl", "EMPTY_COMPILATION_CONTEXT")
@@ -64,10 +63,7 @@ def register_linkstamp_compile_action(
     ctx = _cc_internal.actions2ctx_cheat(actions)
 
     if stamping == None:
-        stamping_tri_state = is_stamping_enabled(ctx)
-        stamping = False if ctx.configuration.is_tool_configuration() else (
-            stamping_tri_state == 1 or (stamping_tri_state == -1 and ctx.configuration.stamp_binaries())
-        )
+        stamping = should_stamp(ctx)
 
     output_group_info = cc_toolchain._build_info_files
     if stamping:
@@ -113,5 +109,3 @@ def register_linkstamp_compile_action(
         needs_include_validation = cc_semantics.needs_include_validation(language = "c++"),
         toolchain_type = cc_semantics.toolchain,
     )
-
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/compile/linkstamp_compile.bzl:forked_exports)

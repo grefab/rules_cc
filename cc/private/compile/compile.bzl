@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# LINT.IfChange(forked_exports)
 """
 The cc_common.compile function.
 
@@ -27,6 +26,8 @@ load(
     "CPP_SOURCE_TYPE_SOURCE",
     "extensions",
     "should_create_per_object_debug_info",
+    _use_pic_for_binaries = "use_pic_for_binaries",
+    _use_pic_for_dynamic_libs = "use_pic_for_dynamic_libs",
     artifact_category = "artifact_category_names",
 )
 load("//cc/common:semantics.bzl", _starlark_cc_semantics = "semantics")
@@ -224,12 +225,8 @@ def compile(
     label = _cc_internal.actions2ctx_cheat(actions).label.same_package_label(name)
     fdo_context = cc_toolchain._fdo_context
 
-    use_pic_for_dynamic_libraries = cpp_configuration.force_pic() or feature_configuration.is_enabled("supports_pic")
-    use_pic_for_binaries = cpp_configuration.force_pic() or (
-        use_pic_for_dynamic_libraries and
-        (cpp_configuration.compilation_mode() != "opt" or
-         feature_configuration.is_enabled("prefer_pic_for_opt_binaries"))
-    )
+    use_pic_for_dynamic_libraries = _use_pic_for_dynamic_libs(cpp_configuration, feature_configuration)
+    use_pic_for_binaries = _use_pic_for_binaries(cpp_configuration, feature_configuration)
     generate_pic_action = use_pic_for_dynamic_libraries or use_pic_for_binaries
     generate_no_pic_action = not use_pic_for_dynamic_libraries or not use_pic_for_binaries
     if disallow_pic_outputs and disallow_nopic_outputs:
@@ -2296,5 +2293,3 @@ def _maybe_declare_gcno_file(
             ),
         )
     return gcno_file
-
-# LINT.ThenChange(https://github.com/bazelbuild/bazel/blob/master/src/main/starlark/builtins_bzl/common/cc/compile/compile.bzl:forked_exports)
