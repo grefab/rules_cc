@@ -34,11 +34,6 @@ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/toolchains:cc_toolchain_config_info.bzl", "CcToolchainConfigInfo")
 load("@rules_cc//cc/toolchains:feature_injection.bzl", "FeatureInfo", "convert_feature")
 
-def _target_os_version(ctx):
-    platform_type = ctx.fragments.apple.single_arch_platform.platform_type
-    xcode_config = ctx.attr._xcode_config[apple_common.XcodeVersionConfig]
-    return xcode_config.minimum_os_for_platform_type(platform_type)
-
 def layering_check_features(compiler, extra_flags_per_feature, is_macos):
     if compiler != "clang":
         return []
@@ -124,15 +119,23 @@ def parse_headers_support(parse_headers_tool_path):
                     flag_groups = [
                         flag_group(
                             flags = [
-                                # Note: This treats all headers as C++ headers, which may lead to
-                                # parsing failures for C headers that are not valid C++.
-                                # For such headers, use features = ["-parse_headers"] to selectively
-                                # disable parsing.
                                 "-xc++-header",
                                 "-fsyntax-only",
                             ],
                         ),
                     ],
+                    with_features = [with_feature_set(not_features = ["parse_headers_as_c"])],
+                ),
+                flag_set(
+                    flag_groups = [
+                        flag_group(
+                            flags = [
+                                "-xc-header",
+                                "-fsyntax-only",
+                            ],
+                        ),
+                    ],
+                    with_features = [with_feature_set(features = ["parse_headers_as_c"])],
                 ),
             ],
             implies = [
@@ -148,6 +151,7 @@ def parse_headers_support(parse_headers_tool_path):
     ]
     features = [
         feature(name = "parse_headers"),
+        feature(name = "parse_headers_as_c"),
     ]
     return action_configs, features
 
@@ -257,6 +261,18 @@ def _impl(ctx):
             ],
         )
         action_configs.append(llvm_cov_action)
+
+    llvm_profdata = ctx.attr.tool_paths.get("llvm-profdata")
+    if llvm_profdata:
+        llvm_profdata_action = action_config(
+            action_name = ACTION_NAMES.llvm_profdata,
+            tools = [
+                tool(
+                    path = llvm_profdata,
+                ),
+            ],
+        )
+        action_configs.append(llvm_profdata_action)
 
     objcopy = ctx.attr.tool_paths.get("objcopy")
     if objcopy:
@@ -628,6 +644,12 @@ def _impl(ctx):
                         ] + profile_correction_flags,
                         expand_if_available = "fdo_profile_path",
                     ),
+                    flag_group(
+                        expand_if_available = "fdo_profile_changelist",
+                        flags = [
+                            "-DFDO_PROFILE_CHANGELIST=%{fdo_profile_changelist}",
+                        ],
+                    ),
                 ],
             ),
         ],
@@ -790,6 +812,12 @@ def _impl(ctx):
                         ] + profile_correction_flags,
                         expand_if_available = "fdo_profile_path",
                     ),
+                    flag_group(
+                        expand_if_available = "fdo_profile_changelist",
+                        flags = [
+                            "-DFDO_PROFILE_CHANGELIST=%{fdo_profile_changelist}",
+                        ],
+                    ),
                 ],
             ),
         ],
@@ -807,6 +835,12 @@ def _impl(ctx):
                             "-fauto-profile=%{fdo_profile_path}",
                         ] + profile_correction_flags,
                         expand_if_available = "fdo_profile_path",
+                    ),
+                    flag_group(
+                        expand_if_available = "fdo_profile_changelist",
+                        flags = [
+                            "-DFDO_PROFILE_CHANGELIST=%{fdo_profile_changelist}",
+                        ],
                     ),
                 ],
             ),
@@ -1717,6 +1751,17 @@ def _impl(ctx):
         ],
     )
 
+    lsan_feature = _sanitizer_feature(
+        name = "lsan",
+        specific_compile_flags = [
+            "-fsanitize=leak",
+            "-fno-common",
+        ],
+        specific_link_flags = [
+            "-fsanitize=leak",
+        ],
+    )
+
     tsan_feature = _sanitizer_feature(
         name = "tsan",
         specific_compile_flags = [
@@ -1737,15 +1782,17 @@ def _impl(ctx):
         ],
     )
 
-    # If you have Xcode + the CLT installed the version defaults can be
-    # too old for some standard C apis such as thread locals
-    macos_minimum_os_feature = feature(
-        name = "macos_minimum_os",
-        enabled = True,
+    macos_reproducible_feature = feature(
+        name = "macos_reproducible",
+        enabled = "macos_reproducible" in ctx.features,
         flag_sets = [
             flag_set(
-                actions = all_compile_actions + all_link_actions,
-                flag_groups = [flag_group(flags = ["-mmacosx-version-min={}".format(_target_os_version(ctx))])],
+                actions = all_compile_actions,
+                flag_groups = [flag_group(flags = ["-ffile-compilation-dir=."])],
+            ),
+            flag_set(
+                actions = all_link_actions,
+                flag_groups = [flag_group(flags = ["-Wl,-oso_prefix,."])],
             ),
         ],
     )
@@ -1820,6 +1867,8 @@ def _impl(ctx):
 
     no_dotd_file_feature = feature(name = "no_dotd_file")
 
+    skip_virtual_includes_feature = feature(name = "skip_virtual_includes")
+
     # TODO(#8303): Mac crosstool should also declare every feature.
     if is_linux:
         # Linux artifact name patterns are the default.
@@ -1868,6 +1917,7 @@ def _impl(ctx):
             supports_pic_feature,
             prefer_pic_for_opt_binaries_feature,
             asan_feature,
+            lsan_feature,
             tsan_feature,
             ubsan_feature,
             gcc_quoting_for_param_files_feature,
@@ -1897,6 +1947,7 @@ def _impl(ctx):
             archive_param_file_feature,
             set_install_name_feature,
             no_dotd_file_feature,
+            skip_virtual_includes_feature,
         ] + layering_check_features(ctx.attr.compiler, ctx.attr.extra_flags_per_feature, is_macos = False)
     else:
         # macOS artifact name patterns differ from the defaults only for dynamic
@@ -1912,7 +1963,7 @@ def _impl(ctx):
             cpp_modules_feature,
             cpp_module_modmap_file_feature,
             cpp20_module_compile_flags_feature,
-            macos_minimum_os_feature,
+            macos_reproducible_feature,
             macos_default_link_flags_feature,
             dependency_file_feature,
             runtime_library_search_directories_feature,
@@ -1920,6 +1971,7 @@ def _impl(ctx):
             libtool_feature,
             archiver_flags_feature,
             asan_feature,
+            lsan_feature,
             tsan_feature,
             ubsan_feature,
             gcc_quoting_for_param_files_feature,
@@ -1949,6 +2001,7 @@ def _impl(ctx):
             archive_param_file_feature,
             generate_linkmap_feature,
             no_dotd_file_feature,
+            skip_virtual_includes_feature,
         ] + layering_check_features(ctx.attr.compiler, ctx.attr.extra_flags_per_feature, is_macos = True)
 
     parse_headers_action_configs, parse_headers_features = parse_headers_support(
@@ -2029,11 +2082,7 @@ This is only offered as a migration bridge for projects transitioning to rule-ba
         "tool_paths": attr.string_dict(),
         "toolchain_identifier": attr.string(mandatory = True),
         "unfiltered_compile_flags": attr.string_list(),
-        "_xcode_config": attr.label(default = configuration_field(
-            fragment = "apple",
-            name = "xcode_config_label",
-        )),
     },
-    fragments = ["apple", "cpp"],
+    fragments = ["cpp"],
     provides = [CcToolchainConfigInfo],
 )

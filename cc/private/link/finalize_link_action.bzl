@@ -230,8 +230,7 @@ def finalize_link_action(
             action_name = link_type.action_name,
         )
 
-    if cc_toolchain._cpp_configuration.incompatible_use_specific_tool_files() and \
-       link_type.linker_or_archiver == USE_ARCHIVER:
+    if link_type.linker_or_archiver == USE_ARCHIVER:
         linker_files = cc_toolchain._ar_files
     else:
         linker_files = cc_toolchain._linker_files
@@ -263,8 +262,8 @@ def finalize_link_action(
                 output_file = artifact,
                 compilation_inputs = linkstamp.hdrs(),
                 inputs_for_validation = inputs,
-                label_replacement = _quote_replacement(output.path if native_deps and cc_toolchain._cpp_configuration.share_native_deps() else str(output.owner)),
-                output_replacement = _quote_replacement(output.path),
+                target_name = _quote_replacement(output.path if native_deps and cc_toolchain._cpp_configuration.share_native_deps() else str(output.owner)),
+                build_target = _quote_replacement(output.path),
                 needs_pic = needs_pic,
                 stamping = stamping,
                 additional_linkstamp_defines = additional_linkstamp_defines,
@@ -360,9 +359,11 @@ def _create_action(
         action_name = action_name,
         variables = build_variables,
     )
-    if "requires_darwin" not in execution_info:
-        # This prevents gcc from writing the unpredictable (and often irrelevant)
-        # value of getcwd() into the debug info.
+    if not feature_configuration.is_enabled("sanitize_pwd") and "requires_darwin" not in execution_info:
+        # Legacy behavior: prevents gcc from writing the unpredictable (and often
+        # irrelevant) value of getcwd() into the debug info.
+        # New toolchains should use the sanitize_pwd feature instead.
+        # This is mostly solved with -fdebug-prefix-map, and similar flags now.
         env = env | {"PWD": "/proc/self/cwd"}
     exec_group = None
     toolchain = None
